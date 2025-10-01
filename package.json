@@ -1,0 +1,36 @@
+{
+  "name": "print-server-delivery",
+  "version": "1.0.0",
+  "description": "Servidor local para impressão automática de comandas",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js",
+    "build": "pkg . --targets node18-win-x64 --output dist/print-server.exe",
+    "test": "node src/test-print.js"
+  },
+  "keywords": [
+    "print",
+    "thermal",
+    "delivery",
+    "pos"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "node-thermal-printer": "^4.4.3"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2",
+    "pkg": "^5.8.1"
+  },
+  "pkg": {
+    "assets": [
+      "node_modules/**/*"
+    ],
+    "outputPath": "dist"
+  }
+}
