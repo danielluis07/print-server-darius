@@ -65,228 +65,150 @@ class PrintService {
     return statuses[status] || "Não informado";
   }
 
-  async printOrderReceipt(receipt, storeName = null, storePhone = null) {
+  // DENTRO DA CLASSE PrintService em services/print-service.js
+
+  async printOrderReceipt(receipt) {
     try {
       const printer = printerConfig.getPrinter();
+      const printerWidth = printer.getWidth() || 48; // Pega a largura da impressora (padrão 48)
+
+      // --- Função Auxiliar para criar linhas com duas colunas ---
+      const createRow = (left, right) => {
+        const remainingSpace = printerWidth - left.length - right.length;
+        const spaces = " ".repeat(Math.max(0, remainingSpace));
+        printer.println(left + spaces + right);
+      };
 
       // ========== CABEÇALHO DA LOJA ==========
       printer.alignCenter();
-      printer.setTextSize(1, 1);
+      printer.setTextSize(1, 1); // Equivalente ao seu .header
       printer.bold(true);
-      printer.println(storeName || "Nome da Loja");
-      printer.bold(false);
+      printer.println(receipt.storeName || "Minha Loja");
       printer.setTextNormal();
-      printer.println(storePhone || "(11) 0000-0000");
-      printer.println("");
+      printer.bold(false);
+      printer.println(receipt.storePhone || "(11) 0000-0000");
+      printer.println(new Date(receipt.createdAt).toLocaleString("pt-BR"));
+      printer.newLine();
 
       // ========== NÚMERO DO PEDIDO ==========
       printer.alignLeft();
+      printer.setTextSize(0, 0); // Texto normal
       printer.bold(true);
-      printer.setTextSize(1, 1);
-      printer.print("Pedido");
-      printer.alignRight();
-      printer.println(`No. ${receipt.orderNumber}`);
-      printer.setTextNormal();
+      createRow("Pedido", `No. ${receipt.orderNumber}`); // Usando a função de linha
       printer.bold(false);
-
-      // Origem
-      printer.alignLeft();
       printer.println("Origem: Online");
-
-      // Linha tracejada
       printer.drawLine();
 
       // ========== DADOS DO CLIENTE ==========
       printer.println(`Cliente: ${receipt.customerName}`);
       printer.println(`Tel: ${this.formatPhone(receipt.customerPhone)}`);
-
-      // Endereço completo em uma linha
-      let addressLine = `Rua: ${receipt.customerStreet || "N/A"} - No.${
+      // Endereço (quebra de linha manual se necessário, mas geralmente cabe)
+      const address = `Rua: ${receipt.customerStreet || "N/A"} - No.${
         receipt.customerStreetNumber
       }`;
-      if (receipt.customerComplement) {
-        addressLine += ` - Complemento: ${receipt.customerComplement}`;
-      }
-      addressLine += ` - ${receipt.customerNeighborhood || "N/A"} - ${
-        receipt.customerCity || "N/A"
-      } - ${receipt.customerState || "N/A"}`;
-      printer.println(addressLine);
+      printer.println(address);
+      printer.drawLine();
 
       // ========== PRODUTOS ==========
-      printer.drawLine();
       printer.bold(true);
       printer.println("Produtos");
       printer.bold(false);
       printer.drawLine();
 
-      // Iterar pelos itens
       receipt.orderItems.forEach((item) => {
-        if (item.itemType === "product") {
-          // ===== PRODUTO NORMAL =====
-          printer.bold(true);
+        const itemTotalPrice = this.formatCurrency(item.quantity * item.price);
 
-          // Nome do produto com sabores de pizza se houver
-          let productName = item.productName;
-          if (item.subFlavorPizzaNames && item.subFlavorPizzaNames.length > 0) {
-            const totalParts = item.subFlavorPizzaNames.length + 1;
-            const fraction = `1/${totalParts}`;
-            const flavors = item.subFlavorPizzaNames
-              .map((name) => `+ ${fraction} ${name}`)
-              .join(" ");
-            productName += ` ${flavors}`;
-          }
-
-          // Imprimir nome do produto
-          const priceTotal = this.formatCurrency(item.quantity * item.price);
-          const nameWidth = printer.width - priceTotal.length - 2;
-
-          // Se o nome for muito grande, quebra em múltiplas linhas
-          if (productName.length > nameWidth) {
-            printer.println(productName);
-            printer.alignRight();
-            printer.println(priceTotal);
-            printer.alignLeft();
-          } else {
-            // Nome e preço na mesma linha
-            printer.print(productName.padEnd(nameWidth));
-            printer.println(priceTotal);
-          }
-          printer.bold(false);
-
-          // Detalhes do item (tamanho, adicionais)
-          if (item.size) {
-            printer.println(`  - Tamanho: ${item.size}`);
-          }
-
-          if (item.additionalName) {
-            let additionalText = `  - Adicional: ${item.additionalName}`;
-            if (item.additionalGroupName) {
-              additionalText += ` (${item.additionalGroupName})`;
-            }
-            printer.println(additionalText);
-          }
-
-          // Quantidade x Preço unitário
-          printer.println(
-            `  ${item.quantity}x ${this.formatCurrency(item.price)}`
-          );
-          printer.println("");
-        } else if (item.itemType === "combo") {
-          // ===== COMBO =====
-          printer.bold(true);
-
-          // Nome do combo com preço total alinhado à direita
-          const comboTotal = this.formatCurrency(item.quantity * item.price);
-          const comboNameWidth = printer.width - comboTotal.length - 2;
-
-          if (item.comboName.length > comboNameWidth) {
-            printer.println(item.comboName);
-            printer.alignRight();
-            printer.println(comboTotal);
-            printer.alignLeft();
-          } else {
-            printer.print(item.comboName.padEnd(comboNameWidth));
-            printer.println(comboTotal);
-          }
-          printer.bold(false);
-
-          // Itens do combo
-          if (item.comboConfiguration && item.comboConfiguration.length > 0) {
-            item.comboConfiguration.forEach((configItem) => {
-              // Item do combo
-              let itemText = `    ${configItem.chosenQuantity}x ${configItem.productName}`;
-
-              // Sabores adicionais do item do combo
-              if (
-                configItem.additionalFlavorNames &&
-                configItem.additionalFlavorNames.length > 0
-              ) {
-                const totalParts = configItem.additionalFlavorNames.length + 1;
-                const fraction = `1/${totalParts}`;
-                const flavors = configItem.additionalFlavorNames
-                  .map((name) => `+ ${fraction} ${name}`)
-                  .join(" ");
-                itemText += ` ${flavors}`;
-              }
-
-              printer.println(itemText);
-
-              // Tamanho do item do combo
-              if (configItem.size) {
-                printer.println(`      - Tamanho: ${configItem.size}`);
-              }
-
-              // Adicionais do item do combo
-              if (
-                configItem.selectedAdditionals &&
-                configItem.selectedAdditionals.length > 0
-              ) {
-                configItem.selectedAdditionals.forEach((additional) => {
-                  printer.println(`      - Adicional: ${additional.name}`);
-                });
-              }
-            });
-          }
-
-          // Quantidade x Preço unitário do combo
-          printer.println(
-            `    ${item.quantity}x ${this.formatCurrency(item.price)}`
-          );
-          printer.println("");
+        // Monta o nome completo do produto com sabores, etc.
+        let productName = item.productName;
+        if (
+          Array.isArray(item.subFlavorPizzaNames) &&
+          item.subFlavorPizzaNames.length > 0
+        ) {
+          const totalParts = item.subFlavorPizzaNames.length + 1;
+          const fraction = `1/${totalParts}`;
+          const flavors = item.subFlavorPizzaNames
+            .map((name) => `+ ${fraction} ${name}`)
+            .join(" ");
+          productName += ` ${flavors}`;
         }
+
+        if (item.itemType === "product") {
+          // Lógica para quebrar a linha se o nome do produto for muito grande
+          const productNameLine = `${item.quantity}x ${productName}`;
+          if (productNameLine.length + itemTotalPrice.length > printerWidth) {
+            printer.bold(true);
+            printer.println(productNameLine);
+            printer.alignRight();
+            printer.println(itemTotalPrice);
+            printer.alignLeft();
+            printer.bold(false);
+          } else {
+            printer.bold(true);
+            createRow(productNameLine, itemTotalPrice);
+            printer.bold(false);
+          }
+
+          if (item.size) printer.println(`  - Tamanho: ${item.size}`);
+          if (item.additionalName)
+            printer.println(`  - Adicional: ${item.additionalName}`);
+        } else if (item.itemType === "combo") {
+          printer.bold(true);
+          createRow(`${item.quantity}x ${item.comboName}`, itemTotalPrice);
+          printer.bold(false);
+          item.comboConfiguration.forEach((config) => {
+            printer.println(
+              `  - ${config.chosenQuantity}x ${config.productName}`
+            );
+          });
+        }
+        printer.newLine();
       });
 
-      // ========== OBSERVAÇÕES ==========
+      // ========== OBSERVAÇÕES E TOTAIS ==========
       printer.drawLine();
-      printer.println(`Obs: ${receipt.orderObs || "Nenhuma"}`);
-
-      // ========== TOTAIS E PAGAMENTO ==========
-      printer.drawLine();
-
-      // Total
-      printer.bold(true);
-      printer.setTextSize(1, 1);
-      printer.print("Total");
-      printer.alignRight();
-      printer.println(this.formatCurrency(receipt.orderTotalPrice));
-      printer.setTextNormal();
-      printer.bold(false);
-      printer.alignLeft();
-
-      // Taxa de entrega (se houver)
-      if (receipt.orderDeliveryFee && receipt.orderDeliveryFee > 0) {
-        printer.print("Taxa de Entrega");
-        printer.alignRight();
-        printer.println(this.formatCurrency(receipt.orderDeliveryFee));
-        printer.alignLeft();
+      if (receipt.orderObs) {
+        printer.println(`Obs: ${receipt.orderObs}`);
+        printer.drawLine();
       }
 
-      // Forma de pagamento
-      printer.print("Forma de Pagamento");
-      printer.alignRight();
-      printer.println(this.getPaymentMethodText(receipt.orderPaymentType));
-      printer.alignLeft();
+      if (receipt.orderDeliveryFee) {
+        createRow(
+          "Taxa de Entrega",
+          this.formatCurrency(receipt.orderDeliveryFee)
+        );
+      }
 
-      // Status do pedido
-      printer.print("Status do Pedido");
-      printer.alignRight();
-      printer.println(this.getOrderStatusText(receipt.orderStatus));
-      printer.alignLeft();
+      printer.setTextSize(0, 0);
+      printer.bold(true);
+      createRow("Total", this.formatCurrency(receipt.orderTotalPrice));
+      printer.bold(false);
 
-      // Status do pagamento
-      printer.print("Status do Pagamento");
-      printer.alignRight();
-      printer.println(this.getPaymentStatusText(receipt.orderPaymentStatus));
-      printer.alignLeft();
+      createRow(
+        "Forma de Pagamento",
+        this.getPaymentMethodText(receipt.orderPaymentType)
+      );
+
+      // Lógica para o Status do Pagamento
+      const paymentStatusText = this.getPaymentStatusText(
+        receipt.orderPaymentStatus
+      );
+      if (receipt.orderPaymentStatus === "PAID") {
+        printer.newLine();
+        printer.alignCenter();
+        printer.invert(true); // Fundo preto, letras brancas
+        printer.setTextSize(1, 0); // Altura dupla
+        printer.println(` ${paymentStatusText} `);
+        printer.invert(false);
+        printer.setTextNormal();
+      } else {
+        createRow("Status Pagamento", paymentStatusText);
+      }
 
       // ========== CORTAR PAPEL ==========
       printer.cut();
 
-      // Executar impressão
-      const success = await printer.execute();
+      await printer.execute();
       printer.clear();
-
-      return success;
     } catch (error) {
       console.error("Erro na impressão:", error);
       throw error;

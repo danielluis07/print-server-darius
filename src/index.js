@@ -60,35 +60,6 @@ app.post("/print", printController.printOrder);
 app.post("/test", printController.testPrinter);
 app.get("/status", printController.getStatus);
 app.delete("/queue", printController.clearQueue);
-app.post("/preview", async (req, res) => {
-  try {
-    const { orderReceipt } = req.body;
-
-    if (!orderReceipt) {
-      return res.status(400).json({
-        success: false,
-        error: "Dados do pedido não fornecidos",
-      });
-    }
-
-    const printService = require("./services/print-service");
-
-    // ✅ Removido o parâmetro type
-    const html = await printService.generatePreview(
-      orderReceipt,
-      process.env.STORE_NAME,
-      process.env.STORE_PHONE
-    );
-
-    res.send(html);
-  } catch (error) {
-    console.error("❌ Erro ao gerar preview:", error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-    });
-  }
-});
 
 // Tratamento de erros
 app.use((error, req, res, next) => {
